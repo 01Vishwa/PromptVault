@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   Base Styles
+   ============================================================================ */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border-hover rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground;
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-accent/30 text-foreground;
+  }
+}
+
+/* ============================================================================
+   Component Styles
+   ============================================================================ */
+@layer components {
+
+  /* Glassmorphism */
+  .glass {
+    @apply bg-card/80 backdrop-blur-glass border border-border;
+  }
+
+  .glass-hover {
+    @apply hover:bg-card/90 hover:border-border-hover transition-all duration-200;
+  }
+
+  /* Gradient Text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-accent to-accent-light bg-clip-text text-transparent;
+  }
+
+  /* Glow Effect */
+  .glow {
+    @apply shadow-glow;
+  }
+
+  .glow-sm {
+    @apply shadow-glow-sm;
+  }
+
+  /* Card Styles */
+  .card {
+    @apply bg-card border border-border rounded-xl;
+  }
+
+  .card-hover {
+    @apply hover:border-accent/50 hover:shadow-glow-sm transition-all duration-200;
+  }
+
+  /* Button Styles */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-accent-foreground hover:bg-accent-light;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent hover:bg-muted text-muted-foreground hover:text-foreground;
+  }
+
+  .btn-outline {
+    @apply border border-border bg-transparent hover:bg-muted hover:border-border-hover;
+  }
+}
+
+/* ============================================================================
+   Utility Classes
+   ============================================================================ */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+}

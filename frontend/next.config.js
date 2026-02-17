@@ -1,17 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Enable React strict mode for better development experience
-    reactStrictMode: true,
-
-    // API rewrites to proxy to backend
-    async rewrites() {
-        return [
-            {
-                source: '/api/:path*',
-                destination: 'http://localhost:8000/api/:path*',
-            },
-        ];
-    },
+  output: "standalone",
+  async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    return [
+      {
+        source: "/api/proxy/:path*",
+        destination: `${apiUrl}/api/v1/:path*`,
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

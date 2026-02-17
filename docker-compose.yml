@@ -1,0 +1,38 @@
+# PromptVault – Development Stack
+# Database is on Supabase (cloud). This compose file runs the API + frontend only.
+# Usage: docker compose up -d
+#
+# Required: copy backend/.env.example to backend/.env and fill in your keys.
+
+services:
+  # ── API Server (FastAPI) ───────────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Frontend (Next.js 14) ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:8000
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+    depends_on:
+      api:
+        condition: service_healthy

@@ -1,0 +1,24 @@
+{
+  "task_id": "task_tool_use_001",
+  "name": "Simple Tool Action",
+  "description": "Test ability to use a calculator tool.",
+  "prompt": "Calculate 563 * 231 using the calculator tool.",
+  "expected_outcome": "The agent uses the calculator tool with correct args and returns 130053.",
+  "category": "TOOL_USE",
+  "checkpoints": [
+    {
+      "step": 1,
+      "tool_called": "calculator",
+      "description": "Calls calculator tool"
+    },
+    {
+      "step": 2,
+      "output_contains": "130053",
+      "description": "Final output matches computation"
+    }
+  ],
+  "max_steps": 3,
+  "min_steps": 2,
+  "perturbations": ["Rephrase the prompt with different wording avoiding the word 'tool'"],
+  "tags": ["math", "tool"]
+}

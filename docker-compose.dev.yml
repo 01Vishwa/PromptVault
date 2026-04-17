@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  eval-core:
+    volumes:
+      - ./services/eval-core:/app
+    command: uvicorn presentation.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  judge-service:
+    volumes:
+      - ./services/judge-service:/app
+    command: uvicorn presentation.api.main:app --host 0.0.0.0 --port 8001 --reload
+
+  metrics-service:
+    volumes:
+      - ./services/metrics-service:/app
+    command: uvicorn presentation.api.main:app --host 0.0.0.0 --port 8002 --reload
+
+  gateway:
+    volumes:
+      - ./services/gateway:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload

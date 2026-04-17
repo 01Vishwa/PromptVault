@@ -1,51 +1,54 @@
-# Byte-compiled
+# ── Python ────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+*.pyd
 
-# Virtual environments
+# ── Virtual environments ───────────────────────────────────────────────────
 .venv/
 venv/
 env/
+ENV/
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Environment
-.env
-!.env.example
-
-# Distribution
-dist/
-build/
-*.egg-info/
-
-# Coverage
+# ── Testing & type-checking ────────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 htmlcov/
 .coverage
 coverage.xml
+*.lcov
 
-# Mypy
-.mypy_cache/
-
-# Ruff
-.ruff_cache/
-
-# pytest
-.pytest_cache/
-
-# Docker volumes
-pgdata/
-
-# Node / Next.js
-node_modules/
-.next/
-out/
+# ── Environment & secrets ─────────────────────────────────────────────────
+.env
 .env.local
+*.env.local
+!.env.example
 
-# OS
-.DS_Store
+# ── Node / Next.js ────────────────────────────────────────────────────────
+node_modules/
+apps/dashboard/.next/
+apps/dashboard/out/
+npm-debug.log*
+
+# ── Docker ────────────────────────────────────────────────────────────────
+*.dockerignore
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.DS_Store
 Thumbs.db
+
+# ── Generated outputs ─────────────────────────────────────────────────────
+results/
+analysis/results/
+tests/golden_set/*.py   # auto-generated regression tests — commit deliberately
+!tests/golden_set/.gitkeep

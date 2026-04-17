@@ -1,38 +1,185 @@
-# PromptVault – Development Stack
-# Database is on Supabase (cloud). This compose file runs the API + frontend only.
-# Usage: docker compose up -d
-#
-# Required: copy backend/.env.example to backend/.env and fill in your keys.
+version: "3.9"
+
+x-common-env: &common-env
+  DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:eval123@postgres:5432/agent_eval}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4317}
+  EVAL_JUDGE_MODEL: ${EVAL_JUDGE_MODEL:-claude-haiku-4-5-20251001}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  EVAL_CORE_URL: http://eval-core:8000
+  JUDGE_SERVICE_URL: http://judge-service:8001
+  METRICS_SERVICE_URL: http://metrics-service:8002
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
 
 services:
-  # ── API Server (FastAPI) ───────────────────────────────────────────────
-  api:
+  # ── Infrastructure ───────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: eval123
+      POSTGRES_DB: agent_eval
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agent_eval"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - eval-net
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - eval-net
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    restart: unless-stopped
+    ports:
+      - "16686:16686"   # UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - eval-net
+
+  # ── Services ─────────────────────────────────────────────────────────────
+  eval-core:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/agent_eval/Dockerfile
     restart: unless-stopped
     ports:
       - "8000:8000"
-    env_file:
-      - ./backend/.env
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+    networks:
+      - eval-net
 
-  # ── Frontend (Next.js 14) ──────────────────────────────────────────────
-  frontend:
+  judge-service:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/judge/Dockerfile
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "8001:8001"
     environment:
-      NEXT_PUBLIC_API_URL: http://api:8000
-      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:-}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      <<: *common-env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - eval-net
+
+  metrics-service:
+    build:
+      context: .
+      dockerfile: services/metrics/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      <<: *common-env
     depends_on:
-      api:
+      postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - eval-net
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      <<: *common-env
+    depends_on:
+      eval-core:
+        condition: service_healthy
+      judge-service:
+        condition: service_healthy
+      metrics-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - eval-net
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/agent_eval/Dockerfile
+    command: >
+      celery -A services.agent_eval.infrastructure.worker.celery_app worker
+      --loglevel=info --concurrency=2
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    networks:
+      - eval-net
+
+  flower:
+    image: mher/flower:2.0
+    command: celery flower --broker=${REDIS_URL:-redis://redis:6379/0} --port=5555
+    restart: unless-stopped
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: ${REDIS_URL:-redis://redis:6379/0}
+    depends_on:
+      - redis
+    networks:
+      - eval-net
+
+volumes:
+  postgres_data:
+
+networks:
+  eval-net:
+    driver: bridge

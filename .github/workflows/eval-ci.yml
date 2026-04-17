@@ -9,12 +9,12 @@ on:
 
 env:
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-  DATABASE_URL: postgresql+asyncpg://postgres:eval123@localhost:5432/agent_eval
+  DATABASE_URL: postgresql+asyncpg://postgres:${{ secrets.DB_PASSWORD }}@localhost:5432/agent_eval
   REDIS_URL: redis://localhost:6379/0
   OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4317
   EVAL_JUDGE_MODEL: claude-haiku-4-5-20251001
   LOG_LEVEL: INFO
-  JWT_SECRET_KEY: ci-test-secret
+  JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
 
 jobs:
   lint-and-type-check:
@@ -75,7 +75,7 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_PASSWORD: eval123
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
           POSTGRES_DB: agent_eval
           POSTGRES_USER: postgres
         options: >-
@@ -181,7 +181,7 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_PASSWORD: eval123
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
           POSTGRES_DB: agent_eval
         options: >-
           --health-cmd pg_isready

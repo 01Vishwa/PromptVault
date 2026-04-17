@@ -1,0 +1,96 @@
+[
+  {
+    "id": "ms_research_and_summarise",
+    "name": "research_and_summarise",
+    "description": "Agent must search for a topic, retrieve at least two facts, then write a concise summary.",
+    "prompt": "Search the web for information about OpenTelemetry, gather at least two key facts, then write a 3-sentence summary.",
+    "expected_outcome": "A coherent 3-sentence summary mentioning at least two distinct facts about OpenTelemetry.",
+    "success_criteria": "partial_credit",
+    "category": "multi_step",
+    "max_steps": 8,
+    "min_steps": 3,
+    "checkpoints": [
+      {
+        "step": 1,
+        "tool_called": "search_web",
+        "description": "Agent must call search_web first"
+      },
+      {
+        "step": 3,
+        "output_contains": "OpenTelemetry",
+        "description": "Final output must mention the topic"
+      }
+    ],
+    "tags": ["multi_step", "search", "summarisation"],
+    "perturbations": [
+      "Search for 'distributed tracing OpenTelemetry' instead",
+      "Ask for 5 sentences instead of 3"
+    ]
+  },
+  {
+    "id": "ms_calc_then_write",
+    "name": "calc_then_write",
+    "description": "Agent must solve a maths problem, then write the result to a file.",
+    "prompt": "Calculate 2 raised to the power of 10, then write the result to a file called result.txt.",
+    "expected_outcome": "File written with content '1024'.",
+    "success_criteria": "binary",
+    "category": "multi_step",
+    "max_steps": 6,
+    "min_steps": 2,
+    "checkpoints": [
+      {
+        "step": 1,
+        "tool_called": "calculator",
+        "description": "Must use calculator first"
+      },
+      {
+        "step": 2,
+        "tool_called": "write_file",
+        "description": "Must then write the result to a file"
+      },
+      {
+        "step": 2,
+        "output_contains": "1024",
+        "description": "Output must reference the correct result"
+      }
+    ],
+    "tags": ["multi_step", "calculator", "file_write"],
+    "perturbations": [
+      "Calculate 3 raised to the power of 7 instead",
+      "Write to report.txt instead of result.txt"
+    ]
+  },
+  {
+    "id": "ms_weather_then_summarise",
+    "name": "weather_then_summarise",
+    "description": "Agent must fetch weather for two cities then compare them.",
+    "prompt": "Get the current weather for London and Tokyo, then write a one-sentence comparison of the two cities' temperatures.",
+    "expected_outcome": "A sentence comparing London and Tokyo temperatures, derived from the weather tool output.",
+    "success_criteria": "partial_credit",
+    "category": "multi_step",
+    "max_steps": 6,
+    "min_steps": 2,
+    "checkpoints": [
+      {
+        "step": 1,
+        "tool_called": "get_weather",
+        "description": "Must call get_weather at least once"
+      },
+      {
+        "step": 2,
+        "output_contains": "London",
+        "description": "Output must mention London"
+      },
+      {
+        "step": 2,
+        "output_contains": "Tokyo",
+        "description": "Output must mention Tokyo"
+      }
+    ],
+    "tags": ["multi_step", "weather", "comparison"],
+    "perturbations": [
+      "Compare Paris and Tokyo instead",
+      "Ask for a detailed 3-point comparison"
+    ]
+  }
+]

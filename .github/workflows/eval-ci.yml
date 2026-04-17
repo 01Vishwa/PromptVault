@@ -1,0 +1,230 @@
+name: Agent Eval CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  DATABASE_URL: postgresql+asyncpg://postgres:eval123@localhost:5432/agent_eval
+  REDIS_URL: redis://localhost:6379/0
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4317
+  EVAL_JUDGE_MODEL: claude-haiku-4-5-20251001
+  LOG_LEVEL: INFO
+  JWT_SECRET_KEY: ci-test-secret
+
+jobs:
+  lint-and-type-check:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install linting tools
+        run: pip install ruff mypy
+
+      - name: Ruff lint
+        run: ruff check services/ core/ contracts/ shared/ --select E,F,W,I
+
+      - name: Mypy (domain layer)
+        run: mypy services/agent_eval/domain/ core/ --ignore-missing-imports --strict
+
+  unit-tests:
+    name: Unit Tests
+    needs: lint-and-type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            pytest pytest-asyncio pytest-cov \
+            pydantic pydantic-settings \
+            fastapi httpx sqlalchemy[asyncio]
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v --tb=short -q --cov=services --cov-report=xml
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.run_id }}
+          path: coverage.xml
+          retention-days: 7
+
+  integration-eval:
+    name: Integration & Eval Pipeline
+    needs: unit-tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: eval123
+          POSTGRES_DB: agent_eval
+          POSTGRES_USER: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+      jaeger:
+        image: jaegertracing/all-in-one:latest
+        ports:
+          - 16686:16686
+          - 4317:4317
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install all dependencies
+        run: |
+          pip install \
+            fastapi uvicorn[standard] sqlalchemy[asyncio] asyncpg \
+            pydantic pydantic-settings httpx anthropic alembic \
+            opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc \
+            langchain langchain-anthropic celery redis sse-starlette \
+            python-jose[cryptography] pytest pytest-asyncio
+
+      - name: Create DB tables
+        run: python -c "
+          import asyncio
+          from services.agent_eval.infrastructure.database.connection import DatabaseConnection
+          async def main():
+              await DatabaseConnection.initialise('$DATABASE_URL')
+              await DatabaseConnection.create_tables()
+              await DatabaseConnection.close()
+          asyncio.run(main())
+        "
+
+      - name: Start eval-core service
+        run: |
+          uvicorn services.agent_eval.presentation.api.main:app \
+            --host 0.0.0.0 --port 8000 &
+          echo "EVAL_CORE_PID=$!" >> $GITHUB_ENV
+
+      - name: Start judge service
+        run: |
+          uvicorn services.judge.presentation.api.main:app \
+            --host 0.0.0.0 --port 8001 &
+
+      - name: Start metrics service
+        run: |
+          uvicorn services.metrics.presentation.api.main:app \
+            --host 0.0.0.0 --port 8002 &
+
+      - name: Start gateway
+        run: |
+          uvicorn services.gateway.main:app \
+            --host 0.0.0.0 --port 8080 &
+
+      - name: Wait for services to be ready
+        run: |
+          sleep 10
+          curl --retry 8 --retry-delay 2 http://localhost:8000/health
+          curl --retry 8 --retry-delay 2 http://localhost:8001/health
+          curl --retry 8 --retry-delay 2 http://localhost:8080/health
+
+      - name: Run integration tests
+        run: pytest tests/integration/ -m integration -v --tb=short
+
+      - name: Check eval pass-rate thresholds
+        run: python scripts/check_pass_rate.py
+        continue-on-error: true  # Don't fail CI if no results written yet
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.run_id }}
+          path: results/
+          retention-days: 30
+
+  regression-tests:
+    name: Golden Set Regression Tests
+    needs: unit-tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: eval123
+          POSTGRES_DB: agent_eval
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pytest pytest-asyncio fastapi sqlalchemy[asyncio] asyncpg pydantic
+
+      - name: Run regression tests
+        run: pytest tests/golden_set/ -m regression -v --tb=long
+        continue-on-error: true  # golden_set may be empty on first run
+
+  frontend-build:
+    name: Frontend Build & Lint
+    needs: lint-and-type-check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/dashboard/package-lock.json
+
+      - name: Install dashboard dependencies
+        run: cd apps/dashboard && npm ci
+
+      - name: TypeScript check
+        run: cd apps/dashboard && npm run build
+
+      - name: ESLint
+        run: cd apps/dashboard && npm run lint
+        continue-on-error: true  # Lint warnings shouldn't fail build

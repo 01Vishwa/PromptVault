@@ -1,0 +1,19 @@
+{
+  "task_id": "task_basic_qa_001",
+  "name": "Basic Question Answering",
+  "description": "Test ability to retrieve simple facts.",
+  "prompt": "What is the capital of France?",
+  "expected_outcome": "The agent should state that Paris is the capital.",
+  "category": "BASIC_QA",
+  "checkpoints": [
+    {
+      "step": 1,
+      "output_contains": "Paris",
+      "description": "Output includes Paris"
+    }
+  ],
+  "max_steps": 2,
+  "min_steps": 1,
+  "perturbations": [],
+  "tags": ["geography", "qa"]
+}
